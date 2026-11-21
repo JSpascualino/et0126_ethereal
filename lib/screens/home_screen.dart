@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/habit_model.dart';
 import '../widgets/progress_canvas.dart';
+import 'activity_form_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -108,6 +109,19 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: AppBar(
         title: const Text('Ethereal', style: TextStyle(fontWeight: FontWeight.bold)),
         backgroundColor: const Color(0xFFB39DDB),
+        // ACÁ ESTÁ EL NUEVO BOTÓN QUE LLEVA AL FORMULARIO
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.assignment),
+            tooltip: 'Registro de Actividad',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const ActivityFormScreen()),
+              );
+            },
+          )
+        ],
       ),
       body: Column(
         children: [
@@ -133,16 +147,14 @@ class _HomeScreenState extends State<HomeScreen> {
           // Lista de hábitos o estado vacío
           Expanded(
             child: _habits.isEmpty
-                ? Center(
+                ? const Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Asegúrate de tener una imagen aquí, o comenta esta línea si aún no la pones.
-                        // Image.asset('assets/images/empty_state.png', width: 150),
-                        const Icon(Icons.list_alt, size: 80, color: Colors.grey),
-                        const SizedBox(height: 16),
-                        const Text('Aún no tienes hábitos.', style: TextStyle(fontSize: 18, color: Colors.grey)),
-                        const Text('¡Crea uno para empezar!'),
+                        Icon(Icons.list_alt, size: 80, color: Colors.grey),
+                        SizedBox(height: 16),
+                        Text('Aún no tienes hábitos.', style: TextStyle(fontSize: 18, color: Colors.grey)),
+                        Text('¡Crea uno para empezar!'),
                       ],
                     ),
                   )

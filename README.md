@@ -2,37 +2,62 @@
 
 Aplicación móvil desarrollada en Flutter para el seguimiento de hábitos diarios mediante mecánicas de gamificación progresiva.
 
-## Captura de la aplicación
-
-![Vista previa de Ethereal](screenshots/app_preview.png)
-
 ## Instalación y ejecución
 
-1. Clona este repositorio en tu equipo: `git clone https://github.com/JSpascualino/et0126_ethereal.git`
-2. Entra a la carpeta del proyecto: `cd et0126_ethereal`
-3. Instala las dependencias: `flutter pub get`
-4. Ejecuta la aplicación en un emulador o dispositivo conectado: `flutter run`
+1. Clona este repositorio: `git clone https://github.com/JSpascualino/et0126_ethereal.git`
+2. Instala las dependencias: `flutter pub get`
+3. Ejecuta la aplicación: `flutter run`
 
-## Conceptos de Dart en mi app
+---
 
-En el desarrollo de **Ethereal**, se aplicaron los fundamentos del lenguaje Dart distribuidos entre la lógica de negocio (`lib/models/habit.dart`) y la interfaz de usuario (`lib/screens/home_screen.dart`):
+## Taller de Continuación: Formularios y Servicio Asíncrono
 
-* **Tipos, final, const y Null Safety:** Se definieron tipos explícitos (`String`, `int`, `DateTime`). Los atributos inmutables como `id` y `name` usan `final`, y los widgets de la UI usan `const`. Se aplicó null safety marcando `String? notes` como nullable, ya que es el único campo opcional al crear un hábito.
-* **Clases y objetos:** Se creó la clase modelo `Habit` con su constructor y métodos propios. En `HomeScreen`, se instancian objetos de tipo `Habit` cada vez que el usuario registra una nueva meta.
-* **Funciones:** Se separaron operaciones en funciones dedicadas como `calculateLevel()` para la lógica de gamificación, y `_loadHabits()` / `_saveHabits()` para la persistencia.
-* **List:** Se utiliza `List<Habit> _habits` como estructura principal en memoria para almacenar y renderizar secuencialmente los hábitos.
-* **Set:** El atributo `Set<String> tags` garantiza etiquetas únicas sin duplicados por hábito.
-* **Map:** Se emplea `Map<String, dynamic>` en `toMap()` y `fromMap()` para estructurar los datos en pares llave-valor antes de serializarlos a JSON.
-* **Estructuras if, for y while:** 
-  * **if:** Valida que el nombre del hábito no esté vacío antes de guardarlo y verifica si existen datos previos guardados.
-  * **for:** Recorre los niveles superados en `totalPointsInvested()` para calcular el total de puntos.
-  * **while:** Ejecuta una repetición finita en `calculateLevel()` descontando puntos por nivel a medida que aumenta la dificultad, sin bloquear la interfaz.
+Para esta segunda etapa, se integró un **"Registro de Actividad"**. Este flujo permite al usuario llevar una bitácora diaria detallando cuánto tiempo invirtió en un hábito y cómo se sintió. Esto es útil para el usuario porque no solo marca un hábito como "hecho", sino que fomenta la reflexión y mide el esfuerzo real invertido.
+
+### Campos y Validaciones (`form_field_validator`)
+El formulario incluye tres campos validados antes de procesar el guardado:
+1. **Nombre del hábito (Texto):** `RequiredValidator` y `MinLengthValidator` (mínimo 3 caracteres).
+2. **Duración en minutos (Numérico):** Regla de dominio propia. Valida que el texto no esté vacío, sea un número válido y sea estrictamente **mayor a 0**.
+3. **Observación (Texto):** `RequiredValidator` (Obligatorio para asegurar la reflexión del usuario).
+
+### Modelo y Servicio en Memoria
+* **Modelo (`ActivityRecord`):** Clase fuertemente tipada que encapsula la información del registro (id, habitName, durationMinutes, observation, date).
+* **Servicio (`ActivityService`):** Aisla la lógica de negocio de la interfaz. Utiliza `Future.delayed` para simular latencia de red.
+* **Regla de Negocio:** El servicio impide registrar una actividad para el mismo hábito en el mismo día (lanza un `StateError` si detecta un duplicado).
+
+### Límite de los datos en memoria
+Los hábitos principales de la app mantienen su persistencia local usando `SharedPreferences` (Taller 1). Sin embargo, los **Registros de Actividad** de este nuevo flujo viven **exclusivamente en la memoria RAM** (en una lista estática dentro del servicio). Al reiniciar o cerrar la app, estos registros temporales desaparecen, simulando el comportamiento de una sesión temporal antes de integrarse a una base de datos real.
+
+### Resultados de la comprobación manual
+
+| Caso | Acción | Resultado comprobado |
+|---|---|---|
+| **Campos vacíos** | Pulsar guardar sin escribir. | Aparecen textos de error en rojo bajo los campos. No se llama al servicio. |
+| **Texto muy corto** | Escribir "Ir" en el hábito. | El validador muestra "Usa al menos 3 caracteres". |
+| **Regla de dominio** | Ingresar `-5` o `0` en minutos. | Muestra el error "La duración debe ser mayor a 0". |
+| **Registro válido** | Completar todo y guardar. | El botón muestra indicador de carga, luego el registro aparece en la lista con un SnackBar verde. |
+| **Error de negocio** | Intentar registrar el mismo hábito hoy. | La app rechaza el registro y muestra un SnackBar rojo con el mensaje de error del servicio. |
+| **Envío rápido** | Pulsar varias veces "Guardar". | El botón se deshabilita durante la carga gracias al estado `_isSaving`, evitando duplicados. |
+| **Reinicio** | Cerrar y abrir la app. | Los hábitos de inicio se mantienen. Los registros de actividad desaparecen (comportamiento esperado). |
+
+---
+
+## Conceptos de Dart (Taller 1)
+
+En la primera etapa se aplicaron los siguientes fundamentos:
+* **Tipos, final, const y Null Safety:** Variables tipadas (`String`, `int`). Uso de `final` para atributos inmutables y `const` para widgets.
+* **Clases y objetos:** Modelo `Habit` con métodos propios, instanciado en `HomeScreen`.
+* **Estructuras de datos:** Uso de `List` para el renderizado secuencial de hábitos.
+* **Estructuras if, for y while:** Validación de campos (`if`), iteraciones de cálculo (`for`) y progresión de niveles (`while`).
+
+---
 
 ## Declaración de uso de IA
 
-Para el desarrollo de este proyecto se utilizó **Gemini** como herramienta de apoyo técnico para:
-* Depurar errores de configuración del entorno de Flutter e imports.
-* Estructurar la separación de responsabilidades bajo arquitectura MVC (modelo independiente de la vista) y la serialización JSON con `shared_preferences`.
-* Refinar la implementación de las estructuras de control (`while` y `for`) aplicadas a la lógica de niveles.
+Para el desarrollo de estos talleres se utilizó **Gemini** como herramienta de apoyo para:
+* Depurar errores de configuración de entorno, imports y Git/GitHub.
+* Estructurar la arquitectura separando la vista (`ActivityFormScreen`) del modelo y el servicio.
+* Implementar correctamente el ciclo de vida del `StatefulWidget` (`initState`, `dispose`, y la comprobación de `mounted` después de operaciones `await`).
+* Construir la regla de validación de negocio en la colección temporal en memoria.
 
-Toda la integración, pruebas de ejecución y decisiones de diseño fueron verificadas y comprendidas por el autor del repositorio. 
+Toda la integración, pruebas manuales y decisiones de diseño fueron ejecutadas y comprendidas por el autor.
