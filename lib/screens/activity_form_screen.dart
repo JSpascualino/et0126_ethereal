@@ -1,207 +1,205 @@
 import 'package:flutter/material.dart';
-import 'package:form_field_validator/form_field_validator.dart';
-import '../models/activity_record.dart';
-import '../services/activity_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../models/habit_model.dart';
 
 class ActivityFormScreen extends StatefulWidget {
-  const ActivityFormScreen({super.key});
+  const ActivityFormScreen({Key? key}) : super(key: key);
 
   @override
   State<ActivityFormScreen> createState() => _ActivityFormScreenState();
 }
 
 class _ActivityFormScreenState extends State<ActivityFormScreen> {
-  // 1. Llave del formulario y Controladores
-  final _formKey = GlobalKey<FormState>();
-  final _habitNameController = TextEditingController();
-  final _durationController = TextEditingController();
-  final _observationController = TextEditingController();
+  List<Habit> _completedHabits = [];
+  bool _isLoading = true;
 
-  // 2. Instancia del servicio y estados de la UI
-  final ActivityService _service = ActivityService();
-  List<ActivityRecord> _records = [];
-  bool _isLoadingList = true;
-  bool _isSaving = false;
-
-  // 3. Cargar datos iniciales sin llamar al servicio desde build()
   @override
   void initState() {
     super.initState();
-    _loadRecords();
+    _loadCompletedHabits();
   }
 
-  // 4. Liberar memoria al salir
-  @override
-  void dispose() {
-    _habitNameController.dispose();
-    _durationController.dispose();
-    _observationController.dispose();
-    super.dispose();
+  Future<void> _loadCompletedHabits() async {
+    final prefs = await SharedPreferences.getInstance();
+    final List<String>? completedJson = prefs.getStringList('completed_habits');
+
+    setState(() {
+      if (completedJson != null) {
+        _completedHabits =
+            completedJson.map((h) => Habit.fromJson(h)).toList().reversed.toList();
+      }
+      _isLoading = false;
+    });
   }
 
-  Future<void> _loadRecords() async {
-    try {
-      final records = await _service.getRecords();
-      if (mounted) {
-        setState(() {
-          _records = records;
-          _isLoadingList = false;
-        });
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoadingList = false);
-      }
-    }
-  }
-
-  // Función para guardar con protección de doble envío y try-catch-finally
-  Future<void> _saveRecord() async {
-    // Valida los campos. Si hay error, se detiene.
-    if (!_formKey.currentState!.validate()) return;
-
-    // Marca como ocupado para evitar envíos repetidos
-    setState(() => _isSaving = true);
-
-    try {
-      final newRecord = ActivityRecord(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        habitName: _habitNameController.text.trim(),
-        durationMinutes: int.parse(_durationController.text.trim()),
-        observation: _observationController.text.trim(),
-        date: DateTime.now(),
-      );
-
-      // Espera el resultado del servicio
-      final savedRecord = await _service.createRecord(newRecord);
-
-      if (mounted) {
-        // Actualiza la lista, limpia el formulario y muestra confirmación
-        setState(() {
-          _records = [savedRecord, ..._records];
-          _habitNameController.clear();
-          _durationController.clear();
-          _observationController.clear();
-        });
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('¡Actividad registrada con éxito!'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      // Si el servicio rechaza la regla de negocio, muestra el error
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(e.toString()), backgroundColor: Colors.red),
-        );
-      }
-    } finally {
-      // En cualquier caso, termina el estado de carga
-      if (mounted) {
-        setState(() => _isSaving = false);
-      }
-    }
-  }
-
-  // VALIDACIONES
-  final nameValidator = MultiValidator([
-    RequiredValidator(errorText: 'Escribe el nombre del hábito.'),
-    MinLengthValidator(3, errorText: 'Usa al menos 3 caracteres.'),
-  ]);
-
-  // Regla de dominio: La duración debe ser mayor a 0
-  String? durationValidator(String? value) {
-    if (value == null || value.isEmpty) return 'Ingresa los minutos.';
-    final number = int.tryParse(value);
-    if (number == null) return 'Debe ser un número.';
-    if (number <= 0) return 'La duración debe ser mayor a 0.';
-    return null;
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Registrar Actividad')),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          children: [
-            // --- FORMULARIO ---
-            Form(
-              key: _formKey,
-              child: Column(
-                children: [
-                  TextFormField(
-                    controller: _habitNameController,
-                    decoration: const InputDecoration(labelText: 'Hábito a registrar', border: OutlineInputBorder()),
-                    validator: nameValidator,
-                    enabled: !_isSaving, // Deshabilita si está guardando
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _durationController,
-                          decoration: const InputDecoration(labelText: 'Minutos', border: OutlineInputBorder()),
-                          keyboardType: TextInputType.number,
-                          validator: durationValidator,
-                          enabled: !_isSaving,
+      appBar: AppBar(
+        title: const Text(
+          'Hábitos Conscientes',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: const Color(0xFFB39DDB),
+      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _completedHabits.isEmpty
+              ? Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.emoji_events_outlined,
+                          size: 90,
+                          color: Colors.amber.shade400,
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        flex: 2,
-                        child: TextFormField(
-                          controller: _observationController,
-                          decoration: const InputDecoration(labelText: '¿Cómo te sentiste?', border: OutlineInputBorder()),
-                          validator: RequiredValidator(errorText: 'Obligatorio'),
-                          enabled: !_isSaving,
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Tu Sala de Trofeos está vacía',
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF4527A0),
+                          ),
+                          textAlign: TextAlign.center,
                         ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Botón de guardar con estado de carga
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton(
-                      onPressed: _isSaving ? null : _saveRecord,
-                      child: _isSaving
-                          ? const CircularProgressIndicator()
-                          : const Text('Guardar Actividad'),
+                        const SizedBox(height: 8),
+                        const Text(
+                          'Completa 120 días de cualquier hábito en la pantalla principal para forjar un hábito consciente y exhibirlo aquí.',
+                          style: TextStyle(fontSize: 14, color: Colors.black54),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-            const Divider(height: 40, thickness: 2),
-
-            // --- LISTA DE REGISTROS ---
-            Expanded(
-              child: _isLoadingList
-                  ? const Center(child: CircularProgressIndicator())
-                  : _records.isEmpty
-                      ? const Center(child: Text('No hay actividades. ¡Registra la primera!'))
-                      : ListView.builder(
-                          itemCount: _records.length,
-                          itemBuilder: (context, index) {
-                            final record = _records[index];
-                            return Card(
-                              child: ListTile(
-                                leading: const Icon(Icons.check_circle, color: Colors.purple),
-                                title: Text(record.habitName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                                subtitle: Text(record.observation),
-                                trailing: Text('${record.durationMinutes} min'),
-                              ),
-                            );
-                          },
+                )
+              : Column(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.all(16),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFF7E57C2), Color(0xFF5E35B1)],
                         ),
-            ),
-          ],
-        ),
-      ),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.workspace_premium,
+                              color: Colors.amber, size: 44),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${_completedHabits.length} ${_completedHabits.length == 1 ? 'Hábito Consciente' : 'Hábitos Conscientes'}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const Text(
+                                  '120 días de disciplina superados con éxito.',
+                                  style: TextStyle(
+                                      color: Colors.white70, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: ListView.builder(
+                        itemCount: _completedHabits.length,
+                        itemBuilder: (context, index) {
+                          final habit = _completedHabits[index];
+                          final endDate = habit.completedDate ?? DateTime.now();
+
+                          return Card(
+                            elevation: 2,
+                            margin: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              side: BorderSide(
+                                  color: Colors.amber.shade300, width: 1.5),
+                            ),
+                            child: ListTile(
+                              contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 10),
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.amber.shade100,
+                                radius: 26,
+                                child: Icon(
+                                  Icons.emoji_events_rounded,
+                                  color: Colors.amber.shade800,
+                                  size: 30,
+                                ),
+                              ),
+                              title: Text(
+                                habit.name,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              subtitle: Padding(
+                                padding: const EdgeInsets.only(top: 4.0),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      'Iniciado: ${_formatDate(habit.startDate)}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    Text(
+                                      'Consolidado: ${_formatDate(endDate)} (120 días)',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.teal.shade700,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              trailing: Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.amber.shade50,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: Text(
+                                  '+700 pts',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    color: Colors.amber.shade900,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
     );
   }
 }

@@ -1,73 +1,122 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 
 class Habit {
-  final String id;
-  final String name;
-  final String category;
+  String id;
+  String name;
+  DateTime startDate;
+  DateTime? completedDate;
+  DateTime? lastCompletedDate;
   int timesCompleted;
-  final DateTime startDate;
-  Set<String> tags;
-  String? notes;
+  int currentStreak;
+  bool claimed7;
+  bool claimed30;
+  int? reminderHour;
+  int? reminderMinute;
 
   Habit({
     required this.id,
     required this.name,
-    this.category = 'General',
-    this.timesCompleted = 0,
     required this.startDate,
-    this.tags = const {},
-    this.notes,
+    this.completedDate,
+    this.lastCompletedDate,
+    this.timesCompleted = 0,
+    this.currentStreak = 0,
+    this.claimed7 = false,
+    this.claimed30 = false,
+    this.reminderHour,
+    this.reminderMinute,
   });
 
-  // Uso de while: calcula el nivel aumentando la dificultad progresivamente
-  int calculateLevel() {
-    int level = 1;
-    int currentPoints = timesCompleted;
-    int pointsForNextLevel = 5;
+  bool get hasReminder => reminderHour != null && reminderMinute != null;
 
-    while (currentPoints >= pointsForNextLevel) {
-      level++;
-      currentPoints -= pointsForNextLevel;
-      pointsForNextLevel += 2;
-    }
-    return level;
+  TimeOfDay? get reminderTimeOfDay => hasReminder
+      ? TimeOfDay(hour: reminderHour!, minute: reminderMinute!)
+      : null;
+
+  String get formattedReminderTime {
+    if (!hasReminder) return '';
+    final h = reminderHour!.toString().padLeft(2, '0');
+    final m = reminderMinute!.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 
-  // Uso de for: suma el total de puntos invertidos hasta el nivel actual
-  int totalPointsInvested() {
-    int total = 0;
-    for (int i = 1; i < calculateLevel(); i++) {
-      total += 5 + ((i - 1) * 2);
-    }
-    return total;
+  bool get isCompletedToday {
+    if (lastCompletedDate == null) return false;
+    final now = DateTime.now();
+    return lastCompletedDate!.year == now.year &&
+        lastCompletedDate!.month == now.month &&
+        lastCompletedDate!.day == now.day;
   }
 
-  // Para guardar en SharedPreferences (Uso de Map)
+  int get activeStreak {
+    if (lastCompletedDate == null) return 0;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final lastDay = DateTime(
+      lastCompletedDate!.year,
+      lastCompletedDate!.month,
+      lastCompletedDate!.day,
+    );
+    final difference = today.difference(lastDay).inDays;
+    return difference <= 1 ? currentStreak : 0;
+  }
+
+  int get nextTargetDays {
+    if (timesCompleted < 7) return 7;
+    if (timesCompleted < 30) return 30;
+    return 120;
+  }
+
+  int get nextRewardPoints {
+    if (timesCompleted < 7) return 50;
+    if (timesCompleted < 30) return 150;
+    return 500;
+  }
+
+  String get stageLabel {
+    if (timesCompleted < 7) return 'Etapa 1: Arranque';
+    if (timesCompleted < 30) return 'Etapa 2: Constancia';
+    return 'Etapa 3: Maestría';
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'id': id,
       'name': name,
-      'category': category,
-      'timesCompleted': timesCompleted,
       'startDate': startDate.toIso8601String(),
-      'tags': tags.toList(),
-      'notes': notes,
+      'completedDate': completedDate?.toIso8601String(),
+      'lastCompletedDate': lastCompletedDate?.toIso8601String(),
+      'timesCompleted': timesCompleted,
+      'currentStreak': currentStreak,
+      'claimed7': claimed7,
+      'claimed30': claimed30,
+      'reminderHour': reminderHour,
+      'reminderMinute': reminderMinute,
     };
   }
 
-  // Para leer de SharedPreferences
   factory Habit.fromMap(Map<String, dynamic> map) {
     return Habit(
-      id: map['id'],
-      name: map['name'],
-      category: map['category'] ?? 'General',
-      timesCompleted: map['timesCompleted'],
+      id: map['id'] ?? '',
+      name: map['name'] ?? '',
       startDate: DateTime.parse(map['startDate']),
-      tags: (map['tags'] as List<dynamic>?)?.map((e) => e.toString()).toSet() ?? {},
-      notes: map['notes'],
+      completedDate: map['completedDate'] != null
+          ? DateTime.parse(map['completedDate'])
+          : null,
+      lastCompletedDate: map['lastCompletedDate'] != null
+          ? DateTime.parse(map['lastCompletedDate'])
+          : null,
+      timesCompleted: map['timesCompleted'] ?? 0,
+      currentStreak: map['currentStreak'] ?? 0,
+      claimed7: map['claimed7'] ?? false,
+      claimed30: map['claimed30'] ?? false,
+      reminderHour: map['reminderHour'],
+      reminderMinute: map['reminderMinute'],
     );
   }
 
   String toJson() => json.encode(toMap());
+
   factory Habit.fromJson(String source) => Habit.fromMap(json.decode(source));
 }
